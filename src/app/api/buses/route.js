@@ -2,10 +2,24 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Bus from "@/models/Bus";
 
-
 export async function GET(req) {
   try {
     await connectDB();
+
+    // 1. AUTO-INACTIVE LOGIC
+    // Define the threshold (5 minutes ago)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+    // Update all buses that haven't sent an update in 5 mins to 'inactive'
+    await Bus.updateMany(
+      { 
+        lastUpdate: { $lt: fiveMinutesAgo },
+        status: "active" 
+      },
+      { $set: { status: "inactive" } }
+    );
+
+    // 2. FETCH DATA
     const { searchParams } = new URL(req.url);
     const zone = searchParams.get("zone");
     const status = searchParams.get("status");
@@ -22,7 +36,6 @@ export async function GET(req) {
   }
 }
 
-
 export async function PATCH(req) {
   try {
     await connectDB();
@@ -32,9 +45,16 @@ export async function PATCH(req) {
       return NextResponse.json({ success: false, message: "Invalid data" }, { status: 400 });
     }
 
+    // When a location update comes in, we reset status to 'active'
     const updatedBus = await Bus.findOneAndUpdate(
       { busId: Number(busId) },
-      { $set: { location, lastUpdate: new Date() } },
+      { 
+        $set: { 
+          location, 
+          lastUpdate: new Date(),
+          status: "active" // Reset to active on every successful ping
+        } 
+      },
       { new: true }
     );
 
