@@ -5,69 +5,41 @@ import Bus from "@/models/Bus";
 export async function GET(req) {
   try {
     await connectDB();
-
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
     await Bus.updateMany(
-      {
-        lastUpdate: { $lt: twoMinutesAgo },
-        status: "active",
+      { 
+        status: "active", 
+        lastUpdate: { $lt: threeMinutesAgo } 
       },
       { $set: { status: "inactive" } }
     );
 
     const { searchParams } = new URL(req.url);
     const zone = searchParams.get("zone");
-    const status = searchParams.get("status");
-
+    
     const filter = {};
     if (zone) filter.zone = { $regex: zone, $options: "i" };
-    if (status) filter.status = { $regex: status, $options: "i" };
 
-    const buses = await Bus.find(filter).sort({ zone: 1, busId: 1 });
+    const buses = await Bus.find(filter).sort({ busId: 1 });
 
-    return NextResponse.json({ success: true, count: buses.length, data: buses });
+    return NextResponse.json({ success: true, data: buses });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
-export async function PATCH(req) {
+// Your existing POST method for login
+export async function POST(req) {
   try {
     await connectDB();
-    const { busId, location, status } = await req.json();
+    const { zone, password } = await req.json();
+    const admin = await AdminModel.findOne({ zone, password: password.toString() });
 
-    if (busId === undefined) {
-      return NextResponse.json({ success: false, message: "Missing Bus ID" }, { status: 400 });
+    if (admin) {
+      return NextResponse.json({ success: true, message: "Login Successful" });
+    } else {
+      return NextResponse.json({ success: false, message: "Invalid credentials" }, { status: 401 });
     }
-
-    const updateData = {
-      lastUpdate: new Date(), // This tracks the heartbeat
-    };
-
-    // REQUIREMENT: If location is sent, make active. Store lastLocationUpdateAt.
-    if (location && Array.isArray(location) && location[0] !== 0) {
-      updateData.location = location;
-      updateData.status = "active"; 
-      updateData.lastLocationUpdateAt = new Date(); // Update the special timestamp
-    }
-
-    // REQUIREMENT: Handle explicit logout / manual status change
-    if (status) {
-      updateData.status = status;
-    }
-
-    const updatedBus = await Bus.findOneAndUpdate(
-      { busId: Number(busId) },
-      { $set: updateData },
-      { new: true, upsert: false }
-    );
-
-    if (!updatedBus) {
-      return NextResponse.json({ success: false, message: "Bus not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true, data: updatedBus });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

@@ -1,44 +1,45 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import Bus from "@/models/Bus";
+import AdminModel from "@/models/AdminCredential";
 
-export async function GET(req) {
+// GET: Returns unique zones for your dropdown menu
+export async function GET() {
   try {
     await connectDB();
-    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
-    await Bus.updateMany(
-      { 
-        status: "active", 
-        lastUpdate: { $lt: threeMinutesAgo } 
-      },
-      { $set: { status: "inactive" } }
-    );
-
-    const { searchParams } = new URL(req.url);
-    const zone = searchParams.get("zone");
-    
-    const filter = {};
-    if (zone) filter.zone = { $regex: zone, $options: "i" };
-
-    const buses = await Bus.find(filter).sort({ busId: 1 });
-
-    return NextResponse.json({ success: true, data: buses });
+    // distinct("zone") returns a simple array of strings: ["Zone - 1", "Zone - 2"]
+    const zones = await AdminModel.distinct("zone");
+    return NextResponse.json({ success: true, data: zones.sort() });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
-// Your existing POST method for login
+// POST: Validates the zone-specific password
 export async function POST(req) {
   try {
     await connectDB();
     const { zone, password } = await req.json();
-    const admin = await AdminModel.findOne({ zone, password: password.toString() });
+
+    if (!zone || !password) {
+      return NextResponse.json({ success: false, message: "Missing data" }, { status: 400 });
+    }
+
+    const admin = await AdminModel.findOne({ 
+      zone: zone, 
+      password: password.toString().trim() 
+    });
 
     if (admin) {
-      return NextResponse.json({ success: true, message: "Login Successful" });
+      return NextResponse.json({ 
+        success: true, 
+        message: "Login Successful",
+        role: admin.role 
+      });
     } else {
-      return NextResponse.json({ success: false, message: "Invalid credentials" }, { status: 401 });
+      return NextResponse.json(
+        { success: false, message: "Invalid credentials for " + zone }, 
+        { status: 401 }
+      );
     }
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
