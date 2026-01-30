@@ -8,14 +8,16 @@ const busSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["active", "inactive"],
-      default: "active",
+      default: "inactive", // Default to inactive
     },
     location: [Number],
+    lastLocationUpdateAt: Date, // New field requested
+    lastUpdate: Date, // Standard heartbeat timestamp
   },
   {
     collection: "Bus",
     timestamps: true,
-  },
+  }
 );
 
 export default mongoose.models.Bus || mongoose.model("Bus", busSchema);

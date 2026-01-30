@@ -6,12 +6,12 @@ export async function GET(req) {
   try {
     await connectDB();
 
-    // 80-second threshold for auto-inactivation (App pings every 60s)
-    const timeoutThreshold = new Date(Date.now() - 80 * 1000);
+    // REQUIREMENT: If user can't send data for 2 minutes, make inactive instantly
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
 
     await Bus.updateMany(
       {
-        lastUpdate: { $lt: timeoutThreshold },
+        lastUpdate: { $lt: twoMinutesAgo },
         status: "active",
       },
       { $set: { status: "inactive" } }
@@ -42,15 +42,18 @@ export async function PATCH(req) {
       return NextResponse.json({ success: false, message: "Missing Bus ID" }, { status: 400 });
     }
 
-    const updateData = { lastUpdate: new Date() };
+    const updateData = {
+      lastUpdate: new Date(), // This tracks the heartbeat
+    };
 
-    // Set location and auto-activate if coordinates are sent
-    if (location && Array.isArray(location)) {
+    // REQUIREMENT: If location is sent, make active. Store lastLocationUpdateAt.
+    if (location && Array.isArray(location) && location[0] !== 0) {
       updateData.location = location;
       updateData.status = "active"; 
+      updateData.lastLocationUpdateAt = new Date(); // Update the special timestamp
     }
 
-    // Explicit status (like "inactive" on logout) overrides everything
+    // REQUIREMENT: Handle explicit logout / manual status change
     if (status) {
       updateData.status = status;
     }
