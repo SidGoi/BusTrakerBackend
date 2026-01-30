@@ -6,9 +6,7 @@ export async function GET(req) {
   try {
     await connectDB();
 
-    // PRODUCTION BEST PRACTICE: 
-    // If we haven't heard from a bus in 2 minutes, it's definitely offline.
-    // (1.5x to 2x your 60s interval is the standard buffer)
+    // 2-minute threshold for auto-inactivation
     const timeoutThreshold = new Date(Date.now() - 2 * 60 * 1000);
 
     await Bus.updateMany(
@@ -29,16 +27,9 @@ export async function GET(req) {
 
     const buses = await Bus.find(filter).sort({ zone: 1, busId: 1 });
 
-    return NextResponse.json({
-      success: true,
-      count: buses.length,
-      data: buses,
-    });
+    return NextResponse.json({ success: true, count: buses.length, data: buses });
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
@@ -48,22 +39,18 @@ export async function PATCH(req) {
     const { busId, location, status } = await req.json();
 
     if (busId === undefined) {
-      return NextResponse.json(
-        { success: false, message: "Missing Bus ID" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: "Missing Bus ID" }, { status: 400 });
     }
 
-    const updateData = {
-      lastUpdate: new Date(),
-    };
+    const updateData = { lastUpdate: new Date() };
 
+    // AUTO-ACTIVE: If location is sent, status becomes active
     if (location && Array.isArray(location)) {
       updateData.location = location;
       updateData.status = "active"; 
     }
 
-    // Explicit status override (Logout or Manual toggle)
+    // OVERRIDE: If explicit status (like 'inactive') is sent, it takes priority
     if (status) {
       updateData.status = status;
     }
@@ -71,21 +58,15 @@ export async function PATCH(req) {
     const updatedBus = await Bus.findOneAndUpdate(
       { busId: Number(busId) },
       { $set: updateData },
-      { new: true, upsert: false } // upsert: false ensures we don't create fake buses
+      { new: true, upsert: false }
     );
 
     if (!updatedBus) {
-      return NextResponse.json(
-        { success: false, message: "Bus ID not found in database" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, message: "Bus not found" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true, data: updatedBus });
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
