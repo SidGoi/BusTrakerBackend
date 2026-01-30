@@ -63,6 +63,10 @@ export async function PATCH(req) {
       updateData.status = "active"; 
     }
 
+    // Explicit status override (Logout or Manual toggle)
+    if (status) {
+      updateData.status = status;
+    }
 
     const updatedBus = await Bus.findOneAndUpdate(
       { busId: Number(busId) },
