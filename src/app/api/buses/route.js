@@ -5,21 +5,10 @@ import Bus from "@/models/Bus";
 export async function GET(req) {
   try {
     await connectDB();
-    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
-    await Bus.updateMany(
-      { 
-        status: "active", 
-        lastUpdate: { $lt: threeMinutesAgo } 
-      },
-      { $set: { status: "inactive" } }
-    );
-
     const { searchParams } = new URL(req.url);
     const zone = searchParams.get("zone");
     
-    const filter = {};
-    if (zone) filter.zone = { $regex: zone, $options: "i" };
-
+    const filter = zone ? { zone: { $regex: zone, $options: "i" } } : {};
     const buses = await Bus.find(filter).sort({ busId: 1 });
 
     return NextResponse.json({ success: true, data: buses });
@@ -28,18 +17,23 @@ export async function GET(req) {
   }
 }
 
-// Your existing POST method for login
-export async function POST(req) {
+export async function PATCH(req) {
   try {
     await connectDB();
-    const { zone, password } = await req.json();
-    const admin = await AdminModel.findOne({ zone, password: password.toString() });
+    const { busId, location } = await req.json();
 
-    if (admin) {
-      return NextResponse.json({ success: true, message: "Login Successful" });
-    } else {
-      return NextResponse.json({ success: false, message: "Invalid credentials" }, { status: 401 });
-    }
+    const updatedBus = await Bus.findOneAndUpdate(
+      { busId: Number(busId) },
+      { 
+        $set: { 
+          location: location,
+          lastUpdate: new Date() // Store the exact time of update
+        } 
+      },
+      { new: true }
+    );
+
+    return NextResponse.json({ success: true, data: updatedBus });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
