@@ -6,7 +6,6 @@ export async function GET(req) {
   try {
     await connectDB();
 
-    // REQUIREMENT: If user can't send data for 2 minutes, make inactive instantly
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
 
     await Bus.updateMany(
