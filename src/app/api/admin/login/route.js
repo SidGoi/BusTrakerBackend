@@ -2,49 +2,33 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import AdminModel from "@/models/AdminCredential";
 
+// GET method to fetch available zones for the dropdown
 export async function GET() {
-  return NextResponse.json(
-    { success: false, message: "Only POST requests are allowed on this route." },
-    { status: 405 }
-  );
+  try {
+    await connectDB();
+    // Fetch all unique zones from AdminCredentials collection
+    const admins = await AdminModel.find({}, "zone");
+    const zones = admins.map(a => a.zone).sort();
+    
+    return NextResponse.json({ success: true, data: zones });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
 }
 
+// Your existing POST method for login
 export async function POST(req) {
   try {
     await connectDB();
     const { zone, password } = await req.json();
-
-    // Validating input presence
-    if (!zone || !password) {
-      return NextResponse.json(
-        { success: false, message: "Zone and Password are required" },
-        { status: 400 }
-      );
-    }
-
-    // Find admin with matching zone and password
-    const admin = await AdminModel.findOne({ 
-      zone: zone, 
-      password: password.toString() // Ensure it's treated as a string
-    });
+    const admin = await AdminModel.findOne({ zone, password: password.toString() });
 
     if (admin) {
-      return NextResponse.json({ 
-        success: true, 
-        message: "Login Successful",
-        role: admin.role 
-      });
+      return NextResponse.json({ success: true, message: "Login Successful" });
     } else {
-      return NextResponse.json(
-        { success: false, message: "Invalid credentials for this zone" }, 
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, message: "Invalid credentials" }, { status: 401 });
     }
   } catch (error) {
-    console.error("Admin Login API Error:", error);
-    return NextResponse.json(
-      { success: false, error: "Internal Server Error" }, 
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
