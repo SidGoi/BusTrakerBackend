@@ -6,8 +6,9 @@ export async function GET(req) {
   try {
     await connectDB();
 
-    // 2-minute threshold for auto-inactivation
-    const timeoutThreshold = new Date(Date.now() - 2 * 60 * 1000);
+    // SERVER WATCHDOG: Since the app pings every 60s, 
+    // we mark as inactive if no ping for 80s (20s buffer).
+    const timeoutThreshold = new Date(Date.now() - 80 * 1000);
 
     await Bus.updateMany(
       {
@@ -44,13 +45,13 @@ export async function PATCH(req) {
 
     const updateData = { lastUpdate: new Date() };
 
-    // AUTO-ACTIVE: If location is sent, status becomes active
+    // If coordinates are sent, the bus is definitely active
     if (location && Array.isArray(location)) {
       updateData.location = location;
       updateData.status = "active"; 
     }
 
-    // OVERRIDE: If explicit status (like 'inactive') is sent, it takes priority
+    // Explicit status (e.g., "inactive" sent on Logout) overrides everything
     if (status) {
       updateData.status = status;
     }
