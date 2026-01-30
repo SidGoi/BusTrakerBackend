@@ -6,17 +6,19 @@ export async function GET(req) {
   try {
     await connectDB();
 
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    // PRODUCTION BEST PRACTICE: 
+    // If we haven't heard from a bus in 2 minutes, it's definitely offline.
+    // (1.5x to 2x your 60s interval is the standard buffer)
+    const timeoutThreshold = new Date(Date.now() - 2 * 60 * 1000);
 
     await Bus.updateMany(
       {
-        lastUpdate: { $lt: fiveMinutesAgo },
+        lastUpdate: { $lt: timeoutThreshold },
         status: "active",
       },
-      { $set: { status: "inactive" } },
+      { $set: { status: "inactive" } }
     );
 
-    // 2. FETCH DATA
     const { searchParams } = new URL(req.url);
     const zone = searchParams.get("zone");
     const status = searchParams.get("status");
@@ -35,7 +37,7 @@ export async function GET(req) {
   } catch (error) {
     return NextResponse.json(
       { success: false, error: error.message },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
@@ -43,12 +45,12 @@ export async function GET(req) {
 export async function PATCH(req) {
   try {
     await connectDB();
-    const { busId, location, status } = await req.json(); // Add status here
+    const { busId, location, status } = await req.json();
 
     if (busId === undefined) {
       return NextResponse.json(
-        { success: false, message: "Invalid data" },
-        { status: 400 },
+        { success: false, message: "Missing Bus ID" },
+        { status: 400 }
       );
     }
 
@@ -56,23 +58,36 @@ export async function PATCH(req) {
       lastUpdate: new Date(),
     };
 
-    if (location) updateData.location = location;
+    // Logic: If coordinates are sent, the bus is definitely active.
+    // If an explicit status is sent (like 'inactive' on logout), it takes priority.
+    if (location && Array.isArray(location)) {
+      updateData.location = location;
+      updateData.status = "active"; 
+    }
 
-    // If a status is provided (like 'inactive'), use it.
-    // Otherwise, default to 'active' for normal GPS pings.
-    updateData.status = status || "active";
+    // Explicit status override (Logout or Manual toggle)
+    if (status) {
+      updateData.status = status;
+    }
 
     const updatedBus = await Bus.findOneAndUpdate(
       { busId: Number(busId) },
       { $set: updateData },
-      { new: true },
+      { new: true, upsert: false } // upsert: false ensures we don't create fake buses
     );
+
+    if (!updatedBus) {
+      return NextResponse.json(
+        { success: false, message: "Bus ID not found in database" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({ success: true, data: updatedBus });
   } catch (error) {
     return NextResponse.json(
       { success: false, error: error.message },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
