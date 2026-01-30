@@ -58,17 +58,11 @@ export async function PATCH(req) {
       lastUpdate: new Date(),
     };
 
-    // Logic: If coordinates are sent, the bus is definitely active.
-    // If an explicit status is sent (like 'inactive' on logout), it takes priority.
     if (location && Array.isArray(location)) {
       updateData.location = location;
       updateData.status = "active"; 
     }
 
-    // Explicit status override (Logout or Manual toggle)
-    if (status) {
-      updateData.status = status;
-    }
 
     const updatedBus = await Bus.findOneAndUpdate(
       { busId: Number(busId) },
