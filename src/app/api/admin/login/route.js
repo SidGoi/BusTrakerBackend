@@ -1,16 +1,28 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import AdminModel from "@/models/AdminCredential";
+import Bus from "@/models/Bus";
 
-// GET method to fetch available zones for the dropdown
-export async function GET() {
+export async function GET(req) {
   try {
     await connectDB();
-    // Fetch all unique zones from AdminCredentials collection
-    const admins = await AdminModel.find({}, "zone");
-    const zones = admins.map(a => a.zone).sort();
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
+    await Bus.updateMany(
+      { 
+        status: "active", 
+        lastUpdate: { $lt: threeMinutesAgo } 
+      },
+      { $set: { status: "inactive" } }
+    );
+
+    const { searchParams } = new URL(req.url);
+    const zone = searchParams.get("zone");
     
-    return NextResponse.json({ success: true, data: zones });
+    const filter = {};
+    if (zone) filter.zone = { $regex: zone, $options: "i" };
+
+    const buses = await Bus.find(filter).sort({ busId: 1 });
+
+    return NextResponse.json({ success: true, data: buses });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
